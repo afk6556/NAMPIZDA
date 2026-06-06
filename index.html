@@ -77,7 +77,7 @@
             flex-direction: column;
             gap: 8px;
             margin-left: 20px;
-            margin-bottom: 15px;
+            margin-bottom: 5px;
         }
         .options label {
             display: flex;
@@ -95,7 +95,7 @@
             border-radius: 30px;
             border: 1px solid #bbb;
             font-size: 0.95rem;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         .match-row {
             display: flex;
@@ -161,9 +161,9 @@
         <button id="checkAllBtn">✅ Проверить все ответы (статистика)</button>
         <button id="shuffleBtn" class="shuffle-btn">🎲 Перемешать все вопросы</button>
     </div>
-    <div id="result" class="result-area">Нажмите «Проверить все ответы» или проверяйте вопросы по отдельности</div>
+    <div id="result" class="result-area">Выберите ответ или введите текст, затем нажмите «Подтвердить» (для заданий на соответствие и дополнение)</div>
     <div id="testContainer"></div>
-    <footer>🔘 У каждого вопроса есть кнопка «Подтвердить» – нажмите её, чтобы узнать правильный ответ.</footer>
+    <footer>🔘 Для вопросов с выбором ответа результат появляется сразу. Для дополнений и соответствий – после нажатия «Подтвердить».</footer>
 </div>
 
 <script src="questions_data.js"></script>
@@ -203,11 +203,11 @@
         return questionsArray;
     }
 
-    // Проверка конкретного вопроса по индексу и вывод обратной связи
-    function checkSingleQuestion(idx) {
+    // Проверка одного вопроса (общая логика)
+    function checkSingleQuestion(idx, showFeedback = true) {
         const q = currentQuestions[idx];
         const fbDiv = document.getElementById(`fb-${idx}`);
-        if (!fbDiv) return;
+        if (!fbDiv) return { isCorrect: false, correctAnswerText: '' };
         let isCorrect = false;
         let correctAnswerText = '';
 
@@ -249,22 +249,34 @@
             }
         }
 
-        if (isCorrect) {
-            fbDiv.innerHTML = `✅ Верно!`;
-            fbDiv.className = 'correct-feedback correct';
-        } else {
-            fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
-            fbDiv.className = 'correct-feedback wrong';
+        if (showFeedback) {
+            if (isCorrect) {
+                fbDiv.innerHTML = `✅ Верно!`;
+                fbDiv.className = 'correct-feedback correct';
+            } else {
+                fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
+                fbDiv.className = 'correct-feedback wrong';
+            }
         }
+        return { isCorrect, correctAnswerText };
     }
 
-    // Привязка кнопок "Подтвердить" для каждого вопроса
-    function attachCheckButtons() {
+    // Привязка обработчиков для мгновенной проверки choice и для кнопок fill/match
+    function attachHandlers() {
+        // Для choice: при изменении radio сразу проверяем
         for (let idx = 0; idx < currentQuestions.length; idx++) {
+            if (currentQuestions[idx].type === 'choice') {
+                const radios = document.querySelectorAll(`input[name="q${idx}"]`);
+                radios.forEach(radio => {
+                    radio.removeEventListener('change', () => checkSingleQuestion(idx, true));
+                    radio.addEventListener('change', () => checkSingleQuestion(idx, true));
+                });
+            }
+            // Для fill и match: кнопка подтверждения
             const btn = document.getElementById(`btn-check-${idx}`);
             if (btn) {
-                btn.removeEventListener('click', () => checkSingleQuestion(idx));
-                btn.addEventListener('click', () => checkSingleQuestion(idx));
+                btn.removeEventListener('click', () => checkSingleQuestion(idx, true));
+                btn.addEventListener('click', () => checkSingleQuestion(idx, true));
             }
         }
     }
@@ -277,6 +289,7 @@
             card.className = 'question-card';
             card.id = `card-${idx}`;
             if (q.type === 'choice') {
+                // choice: без кнопки, мгновенная проверка
                 card.innerHTML = `<div class="question-text">${idx+1}. ${q.data.text}</div><div class="options">`;
                 q.data.options.forEach((opt, optIdx) => {
                     card.innerHTML += `
@@ -286,8 +299,7 @@
                         </label>
                     `;
                 });
-                card.innerHTML += `</div><button class="btn-check" id="btn-check-${idx}">🔍 Подтвердить</button>
-                                    <div class="correct-feedback" id="fb-${idx}"></div>`;
+                card.innerHTML += `</div><div class="correct-feedback" id="fb-${idx}"></div>`;
             } 
             else if (q.type === 'fill') {
                 card.innerHTML = `
@@ -322,64 +334,16 @@
             }
             container.appendChild(card);
         });
-        attachCheckButtons();
+        attachHandlers();
     }
 
-    // Общая проверка всех ответов (для статистики и отображения всех обратных связей)
+    // Проверка всех ответов (без вывода обратной связи – или с выводом? Выведем)
     function checkAllAnswers() {
         let total = currentQuestions.length;
         let correctCount = 0;
         for (let idx = 0; idx < currentQuestions.length; idx++) {
-            const q = currentQuestions[idx];
-            let isCorrect = false;
-            // Получаем ответ пользователя и проверяем аналогично checkSingleQuestion
-            if (q.type === 'choice') {
-                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-                if (selected && parseInt(selected.value) === q.data.correct) {
-                    isCorrect = true;
-                }
-            }
-            else if (q.type === 'fill') {
-                const input = document.getElementById(`fill-${idx}`);
-                if (input) {
-                    const userVal = input.value.trim().toLowerCase();
-                    const correctVal = q.data.correctAnswer.toLowerCase();
-                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) {
-                        isCorrect = true;
-                    }
-                }
-            }
-            else if (q.type === 'match') {
-                let allMatch = true;
-                for (let i = 0; i < q.data.left.length; i++) {
-                    const select = document.getElementById(`match-${idx}-${i}`);
-                    const selectedVal = select ? parseInt(select.value) : -1;
-                    if (selectedVal !== q.data.correct[i]) {
-                        allMatch = false;
-                        break;
-                    }
-                }
-                if (allMatch) isCorrect = true;
-            }
-            if (isCorrect) correctCount++;
-            // Выводим обратную связь для каждого вопроса (как при нажатии кнопки)
-            const fbDiv = document.getElementById(`fb-${idx}`);
-            if (fbDiv) {
-                if (isCorrect) {
-                    fbDiv.innerHTML = `✅ Верно!`;
-                    fbDiv.className = 'correct-feedback correct';
-                } else {
-                    let correctAnswerText = '';
-                    if (q.type === 'choice') correctAnswerText = q.data.options[q.data.correct];
-                    else if (q.type === 'fill') correctAnswerText = q.data.correctAnswer;
-                    else if (q.type === 'match') {
-                        const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
-                        correctAnswerText = pairs;
-                    }
-                    fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
-                    fbDiv.className = 'correct-feedback wrong';
-                }
-            }
+            const result = checkSingleQuestion(idx, true); // с выводом обратной связи
+            if (result.isCorrect) correctCount++;
         }
         const percent = Math.round((correctCount / total) * 100);
         document.getElementById('result').innerHTML = `📊 Правильных ответов: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Отлично!' : '📚 Повторите материал'}`;
@@ -390,7 +354,7 @@
         currentQuestions = shuffleArray(currentQuestions);
         currentQuestions = shuffleOptionsInQuestions(currentQuestions);
         renderTest();
-        document.getElementById('result').innerHTML = '🔄 Вопросы перемешаны. Нажмите «Подтвердить» у вопроса, чтобы проверить ответ.';
+        document.getElementById('result').innerHTML = '🔄 Вопросы перемешаны. Для choice – отвечайте сразу. Для fill/match – нажмите «Подтвердить».';
     }
 
     document.getElementById('checkAllBtn').addEventListener('click', checkAllAnswers);
