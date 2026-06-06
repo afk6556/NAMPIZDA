@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Полный тест: Анатомия, физиология, патология</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background: #eef2f7;
+            margin: 0;
+            padding: 20px;
+            color: #1e2a3a;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+            padding: 25px 30px;
+        }
+        h1 {
+            text-align: center;
+            color: #155f7c;
+            margin-top: 0;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #2c7da0;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            font-size: 1rem;
+            border-radius: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #1f5e7a;
+            transform: scale(1.02);
+        }
+        .shuffle-btn {
+            background: #5f6c7a;
+        }
+        .result-area {
+            background: #e6f4ea;
+            padding: 15px;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 20px 0;
+        }
+        .question-card {
+            background: #f9fafc;
+            border-left: 6px solid #2c7da0;
+            padding: 18px 22px;
+            margin-bottom: 25px;
+            border-radius: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .question-text {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-left: 20px;
+        }
+        .options label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+        input[type="radio"], input[type="text"] {
+            cursor: pointer;
+        }
+        .fill-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 8px 12px;
+            border-radius: 30px;
+            border: 1px solid #bbb;
+            font-size: 0.95rem;
+        }
+        .match-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin-top: 15px;
+            align-items: flex-start;
+        }
+        .match-col {
+            flex: 1;
+            min-width: 200px;
+        }
+        .match-col select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 20px;
+        }
+        .match-item {
+            margin-bottom: 12px;
+        }
+        .correct-feedback {
+            font-size: 0.85rem;
+            margin-top: 8px;
+            padding: 5px 10px;
+            border-radius: 20px;
+        }
+        .correct {
+            background: #d4edda;
+            color: #155724;
+        }
+        .wrong {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            margin-top: 30px;
+            color: #5f7f9c;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 15px; }
+            .match-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📚 Комплексный экзамен<br>Анатомия · Физиология · Патология</h1>
+    <div class="controls">
+        <button id="checkBtn">✅ Проверить ответы</button>
+        <button id="shuffleBtn" class="shuffle-btn">🎲 Перемешать все вопросы</button>
+    </div>
+    <div id="result" class="result-area">Нажмите «Проверить ответы»</div>
+    <div id="testContainer"></div>
+    <footer>Вопросы и варианты ответов каждый раз перемешиваются. Для соответствия выберите пару из выпадающего списка.</footer>
+</div>
+
+<script src="questions_data.js"></script>
+<script>
+    let currentQuestions = [];
+
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+
+    function shuffleOptionsInQuestions(questionsArray) {
+        for (let q of questionsArray) {
+            if (q.type === 'choice') {
+                const origOptions = q.data.options;
+                const origCorrect = q.data.correct;
+                const indices = origOptions.map((_, idx) => idx);
+                shuffleArray(indices);
+                const newOptions = indices.map(i => origOptions[i]);
+                const newCorrect = indices.indexOf(origCorrect);
+                q.data.options = newOptions;
+                q.data.correct = newCorrect;
+            } else if (q.type === 'match') {
+                const rightItems = q.data.right;
+                const correctIndices = q.data.correct;
+                const rightIndices = rightItems.map((_, idx) => idx);
+                shuffleArray(rightIndices);
+                const newRight = rightIndices.map(i => rightItems[i]);
+                const newCorrect = q.data.correct.map(oldIdx => rightIndices.indexOf(oldIdx));
+                q.data.right = newRight;
+                q.data.correct = newCorrect;
+            }
+        }
+        return questionsArray;
+    }
+
+    function initAndShuffle() {
+        currentQuestions = JSON.parse(JSON.stringify(fullQuestionsData));
+        currentQuestions = shuffleArray(currentQuestions);
+        currentQuestions = shuffleOptionsInQuestions(currentQuestions);
+        renderTest();
+    }
+
+    function renderTest() {
+        const container = document.getElementById('testContainer');
+        container.innerHTML = '';
+        currentQuestions.forEach((q, idx) => {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            card.id = `card-${idx}`;
+            if (q.type === 'choice') {
+                card.innerHTML = `<div class="question-text">${idx+1}. ${q.data.text}</div><div class="options">`;
+                q.data.options.forEach((opt, optIdx) => {
+                    card.innerHTML += `
+                        <label>
+                            <input type="radio" name="q${idx}" value="${optIdx}">
+                            <span>${opt}</span>
+                        </label>
+                    `;
+                });
+                card.innerHTML += `</div><div class="correct-feedback" id="fb-${idx}"></div>`;
+            } 
+            else if (q.type === 'fill') {
+                card.innerHTML = `
+                    <div class="question-text">${idx+1}. ${q.data.text}</div>
+                    <input type="text" class="fill-input" id="fill-${idx}" placeholder="Введите ответ">
+                    <div class="correct-feedback" id="fb-${idx}"></div>
+                `;
+            }
+            else if (q.type === 'match') {
+                const leftItems = q.data.left;
+                const rightItems = q.data.right;
+                let html = `<div class="question-text">${idx+1}. Установите соответствие:</div><div class="match-row">`;
+                html += `<div class="match-col"><strong>Левый столбец</strong><ul style="list-style:none; padding-left:0;">`;
+                leftItems.forEach((item, i) => {
+                    html += `<li class="match-item">${i+1}. ${item}</li>`;
+                });
+                html += `</ul></div><div class="match-col"><strong>Правый столбец</strong>`;
+                for (let i = 0; i < leftItems.length; i++) {
+                    html += `<div class="match-item">
+                                <select id="match-${idx}-${i}" data-leftidx="${i}">
+                                    <option value="">-- выберите --</option>`;
+                    rightItems.forEach((r, ri) => {
+                        html += `<option value="${ri}">${r}</option>`;
+                    });
+                    html += `</select>
+                            </div>`;
+                }
+                html += `</div></div><div class="correct-feedback" id="fb-${idx}"></div>`;
+                card.innerHTML = html;
+            }
+            container.appendChild(card);
+        });
+    }
+
+    function checkAnswers() {
+        let total = currentQuestions.length;
+        let correctCount = 0;
+        for (let idx = 0; idx < currentQuestions.length; idx++) {
+            const q = currentQuestions[idx];
+            const fbDiv = document.getElementById(`fb-${idx}`);
+            let isCorrect = false;
+            if (q.type === 'choice') {
+                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+                if (selected && parseInt(selected.value) === q.data.correct) {
+                    isCorrect = true;
+                    correctCount++;
+                    fbDiv.innerHTML = `✅ Верно!`;
+                } else {
+                    const correctOption = q.data.options[q.data.correct];
+                    fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${correctOption}`;
+                }
+            }
+            else if (q.type === 'fill') {
+                const input = document.getElementById(`fill-${idx}`);
+                const userVal = input.value.trim().toLowerCase();
+                const correctVal = q.data.correctAnswer.toLowerCase();
+                // упрощённое сравнение (можно доработать)
+                if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2)) {
+                    isCorrect = true;
+                    correctCount++;
+                    fbDiv.innerHTML = `✅ Верно!`;
+                } else {
+                    fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${q.data.correctAnswer}`;
+                }
+            }
+            else if (q.type === 'match') {
+                let allMatch = true;
+                for (let i = 0; i < q.data.left.length; i++) {
+                    const select = document.getElementById(`match-${idx}-${i}`);
+                    const selectedVal = select ? parseInt(select.value) : -1;
+                    if (selectedVal !== q.data.correct[i]) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch) {
+                    isCorrect = true;
+                    correctCount++;
+                    fbDiv.innerHTML = `✅ Соответствие верно!`;
+                } else {
+                    const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
+                    fbDiv.innerHTML = `❌ Неверно. Правильные пары: ${pairs}`;
+                }
+            }
+            if (isCorrect) {
+                fbDiv.className = 'correct-feedback correct';
+            } else {
+                fbDiv.className = 'correct-feedback wrong';
+            }
+        }
+        const percent = Math.round((correctCount / total) * 100);
+        document.getElementById('result').innerHTML = `📊 Правильных ответов: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Отлично!' : '📚 Повторите материал'}`;
+    }
+
+    document.getElementById('checkBtn').addEventListener('click', checkAnswers);
+    document.getElementById('shuffleBtn').addEventListener('click', () => {
+        initAndShuffle();
+        document.getElementById('result').innerHTML = '🔄 Вопросы перемешаны. Нажмите «Проверить ответы».';
+    });
+
+    initAndShuffle();
+</script>
+</body>
+</html>
