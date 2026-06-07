@@ -3,107 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тест: Анатомия, физиология, патология</title>
+    <title>Экзамен: генератор вариантов</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f4f8;
-            padding: 24px 16px;
-            color: #0f2c3d;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .container {
-            max-width: 1000px;
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #eef2f5;
+            padding: 30px 20px;
+            color: #1e2f3a;
+        }
+        .exam-container {
+            max-width: 1100px;
             margin: 0 auto;
             background: white;
-            border-radius: 32px;
-            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.1);
-            padding: 28px 32px;
+            border-radius: 28px;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.15);
+            padding: 30px 35px;
         }
-        h1 { text-align: center; color: #1a6b8a; font-size: 1.9rem; margin-bottom: 8px; }
-        .controls { display: flex; justify-content: center; gap: 16px; margin: 24px 0 20px; flex-wrap: wrap; }
+        h1 {
+            text-align: center;
+            color: #1c6d8f;
+            font-size: 1.9rem;
+            margin-bottom: 8px;
+            border-bottom: 3px solid #cbdde9;
+            display: inline-block;
+            width: 100%;
+            padding-bottom: 12px;
+        }
+        .sub {
+            text-align: center;
+            color: #3d6e8b;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
         button {
-            background: #2c7da0; color: white; border: none; padding: 10px 28px;
-            font-size: 1rem; border-radius: 60px; font-weight: 600; cursor: pointer;
-            transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            background: #2c7da0;
+            color: white;
+            border: none;
+            padding: 10px 28px;
+            font-size: 1rem;
+            border-radius: 60px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        button:hover { background: #1f5e7a; transform: translateY(-1px); }
-        .shuffle-btn { background: #556b7c; }
-        .result-area {
-            background: #e3f2ed; padding: 16px 20px; border-radius: 28px; text-align: center;
-            font-size: 1.1rem; font-weight: 500; margin: 20px 0; border-left: 6px solid #2c7da0;
-            color: #154e6b;
+        button:hover {
+            background: #1f5e7a;
+            transform: scale(1.02);
+        }
+        .btn-generate {
+            background: #5f6c7a;
+        }
+        .result-panel {
+            background: #f0f7fc;
+            padding: 18px;
+            border-radius: 28px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin: 30px 0 20px;
+            border-left: 6px solid #2c7da0;
         }
         .question-card {
-            background: #ffffff; border-radius: 28px; margin-bottom: 28px; padding: 20px 26px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #e6edf4;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 24px;
+            margin-bottom: 28px;
+            padding: 20px 28px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
-        .question-text {
-            font-weight: 700; font-size: 1.12rem; margin-bottom: 20px; color: #0b4b62;
-            padding-left: 14px; border-left: 5px solid #2c7da0;
+        .question-header {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            color: #1a4e6b;
+            border-left: 5px solid #2c7da0;
+            padding-left: 14px;
         }
-        /* ПРИНУДИТЕЛЬНО ВЕРТИКАЛЬНО */
         .options {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 12px !important;
-            margin: 8px 0 8px 20px !important;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-left: 20px;
+            margin-bottom: 5px;
         }
         .options label {
-            display: flex !important;
-            align-items: center !important;
-            gap: 14px !important;
+            display: flex;
+            align-items: center;
+            gap: 14px;
             cursor: pointer;
             font-size: 1rem;
             padding: 6px 12px;
             border-radius: 40px;
             transition: background 0.15s;
         }
-        .options label:hover { background: #f5f9fe; }
+        .options label:hover {
+            background: #f0f6fe;
+        }
         input[type="radio"] {
-            width: 18px; height: 18px; cursor: pointer; accent-color: #2c7da0; margin: 0;
+            width: 18px;
+            height: 18px;
+            accent-color: #2c7da0;
         }
         .fill-input {
-            width: 100%; max-width: 500px; padding: 12px 18px; border-radius: 60px;
-            border: 1px solid #cbdde9; font-size: 1rem; margin: 12px 0 12px 0;
-            transition: 0.2s; background: #fefefe;
+            width: 100%;
+            max-width: 450px;
+            padding: 10px 16px;
+            border-radius: 60px;
+            border: 1px solid #cbdde9;
+            font-size: 1rem;
+            margin: 12px 0 8px;
         }
-        .fill-input:focus { outline: none; border-color: #2c7da0; box-shadow: 0 0 0 3px rgba(44,125,160,0.15); }
-        .match-row { display: flex; flex-wrap: wrap; gap: 30px; margin: 18px 0 12px; }
-        .match-col { flex: 1; min-width: 240px; background: #fafcff; padding: 14px 18px; border-radius: 24px; border: 1px solid #e2edf5; }
-        .match-col strong { display: block; margin-bottom: 16px; font-size: 1rem; color: #1a6b8a; }
-        .match-item { margin-bottom: 14px; }
-        .match-col select { width: 100%; padding: 8px 14px; border-radius: 60px; border: 1px solid #cbdde9; background: white; font-size: 0.9rem; cursor: pointer; }
-        .btn-check { background: #2b8c4a; padding: 8px 24px; font-size: 0.85rem; margin-top: 16px; border: none; border-radius: 60px; font-weight: 600; color: white; cursor: pointer; transition: 0.2s; display: inline-block; }
-        .btn-check:hover { background: #1f6e3a; transform: scale(1.02); }
-        .correct-feedback { font-size: 0.9rem; margin-top: 16px; padding: 10px 18px; border-radius: 60px; font-weight: 500; }
-        .correct { background: #dff0e4; color: #0f5c2e; border-left: 5px solid #2b8c4a; }
-        .wrong { background: #fee9e8; color: #ac2c34; border-left: 5px solid #dc3545; }
-        footer { text-align: center; font-size: 0.8rem; margin-top: 40px; color: #6c8e9e; border-top: 1px solid #e2edf5; padding-top: 20px; }
+        .match-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            margin: 18px 0 10px;
+        }
+        .match-col {
+            flex: 1;
+            min-width: 220px;
+            background: #fafdff;
+            padding: 12px 18px;
+            border-radius: 20px;
+            border: 1px solid #e6edf4;
+        }
+        .match-col strong {
+            display: block;
+            margin-bottom: 14px;
+            color: #1c6d8f;
+        }
+        .match-item {
+            margin-bottom: 12px;
+        }
+        .match-col select {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 1px solid #cbdde9;
+            background: white;
+        }
+        .feedback {
+            margin-top: 14px;
+            padding: 8px 16px;
+            border-radius: 60px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .correct-feedback {
+            background: #e0f3e4;
+            color: #146c2e;
+            border-left: 5px solid #2b8c4a;
+        }
+        .wrong-feedback {
+            background: #fee9e8;
+            color: #ac2c34;
+            border-left: 5px solid #dc3545;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            margin-top: 40px;
+            color: #6c8e9e;
+            border-top: 1px solid #e2edf5;
+            padding-top: 20px;
+        }
         @media (max-width: 700px) {
-            .container { padding: 18px; }
-            .question-card { padding: 16px; }
-            .options { margin-left: 8px !important; }
-            .match-row { flex-direction: column; gap: 16px; }
+            .exam-container { padding: 18px; }
+            .question-card { padding: 15px; }
+            .options { margin-left: 8px; }
+            .match-row { flex-direction: column; }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>📚 Анатомия · Физиология · Патология</h1>
+<div class="exam-container">
+    <h1>📚 Экзамен</h1>
+    <div class="sub">Анатомия · Физиология · Патология</div>
     <div class="controls">
-        <button id="checkAllBtn">✅ Проверить все ответы</button>
-        <button id="shuffleBtn" class="shuffle-btn">🎲 Перемешать вопросы</button>
+        <button id="generateBtn" class="btn-generate">🎲 Создать вариант (30 вопросов)</button>
+        <button id="checkBtn">✅ Завершить вариант</button>
     </div>
-    <div id="result" class="result-area">📌 Варианты ответов — вертикально, друг под другом.</div>
-    <div id="testContainer"></div>
-    <footer>🔘 Вертикальное расположение. Enter = подтвердить.</footer>
+    <div id="resultBlock" class="result-panel">Нажмите «Создать вариант» для начала.</div>
+    <div id="questionsContainer"></div>
+    <footer>Каждый вариант содержит 30 случайных вопросов из общей базы. Ответы сохраняются при смене варианта.</footer>
 </div>
 
 <script src="questions_data.js"></script>
 <script>
-    let currentQuestions = [];
+    // Массив fullQuestionsData должен быть определён в подключаемом файле
+    if (typeof fullQuestionsData === 'undefined') {
+        console.error("Файл questions_data.js не загружен или переменная fullQuestionsData не найдена.");
+        alert("Ошибка: не найден файл questions_data.js. Убедитесь, что он лежит в той же папке.");
+    }
 
+    let currentVariant = [];  // выбранные 30 вопросов
+
+    // Функция случайного перемешивания массива
     function shuffleArray(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -112,6 +220,7 @@
         return arr;
     }
 
+    // Перемешивание вариантов ответов для choice и match (для match – правый столбец)
     function shuffleOptionsInQuestions(questionsArray) {
         for (let q of questionsArray) {
             if (q.type === 'choice') {
@@ -137,148 +246,203 @@
         return questionsArray;
     }
 
-    function checkSingleQuestion(idx, showFeedback = true) {
-        const q = currentQuestions[idx];
-        const fbDiv = document.getElementById(`fb-${idx}`);
-        if (!fbDiv) return { isCorrect: false };
-        let isCorrect = false;
-        let correctAnswerText = '';
-
-        if (q.type === 'choice') {
-            const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-            if (selected && parseInt(selected.value) === q.data.correct) isCorrect = true;
-            else correctAnswerText = q.data.options[q.data.correct];
+    // Выбор случайных 30 вопросов (без повторов)
+    function getRandomVariant(bank, size = 30) {
+        if (bank.length < size) {
+            console.warn("В базе меньше 30 вопросов, возвращаю все имеющиеся.");
+            return [...bank];
         }
-        else if (q.type === 'fill') {
-            const input = document.getElementById(`fill-${idx}`);
-            if (input) {
-                const userVal = input.value.trim().toLowerCase();
-                const correctVal = q.data.correctAnswer.toLowerCase();
-                if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) isCorrect = true;
-                else correctAnswerText = q.data.correctAnswer;
-            }
-        }
-        else if (q.type === 'match') {
-            let allMatch = true;
-            for (let i = 0; i < q.data.left.length; i++) {
-                const select = document.getElementById(`match-${idx}-${i}`);
-                const selectedVal = select ? parseInt(select.value) : -1;
-                if (selectedVal !== q.data.correct[i]) { allMatch = false; break; }
-            }
-            if (allMatch) isCorrect = true;
-            else {
-                const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
-                correctAnswerText = pairs;
-            }
-        }
-
-        if (showFeedback) {
-            if (isCorrect) {
-                fbDiv.innerHTML = `✅ Верно!`;
-                fbDiv.className = 'correct-feedback correct';
-            } else {
-                fbDiv.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
-                fbDiv.className = 'correct-feedback wrong';
-            }
-        }
-        return { isCorrect };
+        const shuffledBank = shuffleArray([...bank]);
+        // Возвращаем копию первых size вопросов, но без перемешивания их внутренностей – это сделаем отдельно
+        const selected = shuffledBank.slice(0, size).map(q => JSON.parse(JSON.stringify(q))); // глубокое копирование
+        // Перемешиваем варианты ответов внутри каждого вопроса (для choice и match)
+        return shuffleOptionsInQuestions(selected);
     }
 
-    function onEnterPress(event) {
-        if (event.key === 'Enter') {
-            const active = document.activeElement;
-            const card = active.closest('.question-card');
-            if (card) {
-                const btn = card.querySelector('.btn-check');
-                if (btn) {
-                    event.preventDefault();
-                    btn.click();
-                }
-            }
-        }
-    }
-
-    function attachHandlers() {
-        for (let idx = 0; idx < currentQuestions.length; idx++) {
-            if (currentQuestions[idx].type === 'choice') {
-                const radios = document.querySelectorAll(`input[name="q${idx}"]`);
-                radios.forEach(radio => {
-                    radio.removeEventListener('change', () => checkSingleQuestion(idx, true));
-                    radio.addEventListener('change', () => checkSingleQuestion(idx, true));
-                });
-            } else {
-                const btn = document.getElementById(`btn-check-${idx}`);
-                if (btn) {
-                    btn.removeEventListener('click', () => checkSingleQuestion(idx, true));
-                    btn.addEventListener('click', () => checkSingleQuestion(idx, true));
-                }
-            }
-        }
-        document.removeEventListener('keydown', onEnterPress);
-        document.addEventListener('keydown', onEnterPress);
-    }
-
-    function renderTest() {
-        const container = document.getElementById('testContainer');
-        container.innerHTML = '';
-        currentQuestions.forEach((q, idx) => {
-            const card = document.createElement('div');
-            card.className = 'question-card';
-            if (q.type === 'choice') {
-                let html = `<div class="question-text">${idx+1}. ${q.data.text}</div><div class="options">`;
+    // Отрисовка текущего варианта
+    function renderVariant(variant) {
+        const container = document.getElementById("questionsContainer");
+        container.innerHTML = "";
+        variant.forEach((q, idx) => {
+            const card = document.createElement("div");
+            card.className = "question-card";
+            card.dataset.qid = idx;
+            const header = document.createElement("div");
+            header.className = "question-header";
+            if (q.type === "choice") header.innerText = `${idx+1}. Выберите один ответ`;
+            else if (q.type === "fill") header.innerText = `${idx+1}. Дополните`;
+            else if (q.type === "match") header.innerText = `${idx+1}. Установите соответствие`;
+            else header.innerText = `${idx+1}. Вопрос`;
+            card.appendChild(header);
+            
+            if (q.type === "choice") {
+                const textDiv = document.createElement("div");
+                textDiv.style.marginBottom = "12px";
+                textDiv.style.fontWeight = "500";
+                textDiv.innerText = q.data.text;
+                card.appendChild(textDiv);
+                const optionsDiv = document.createElement("div");
+                optionsDiv.className = "options";
                 q.data.options.forEach((opt, optIdx) => {
-                    html += `<label><input type="radio" name="q${idx}" value="${optIdx}"><span>${opt}</span></label>`;
+                    const label = document.createElement("label");
+                    const radio = document.createElement("input");
+                    radio.type = "radio";
+                    radio.name = `q${idx}`;
+                    radio.value = optIdx;
+                    label.appendChild(radio);
+                    label.appendChild(document.createTextNode(opt));
+                    optionsDiv.appendChild(label);
                 });
-                html += `</div><div class="correct-feedback" id="fb-${idx}"></div>`;
-                card.innerHTML = html;
+                card.appendChild(optionsDiv);
             } 
-            else if (q.type === 'fill') {
-                card.innerHTML = `<div class="question-text">${idx+1}. ${q.data.text}</div>
-                                  <input type="text" class="fill-input" id="fill-${idx}" placeholder="Введите ответ">
-                                  <button class="btn-check" id="btn-check-${idx}">🔍 Подтвердить</button>
-                                  <div class="correct-feedback" id="fb-${idx}"></div>`;
+            else if (q.type === "fill") {
+                const textDiv = document.createElement("div");
+                textDiv.style.marginBottom = "12px";
+                textDiv.style.fontWeight = "500";
+                textDiv.innerText = q.data.text;
+                card.appendChild(textDiv);
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "fill-input";
+                input.id = `fill-${idx}`;
+                card.appendChild(input);
             }
-            else if (q.type === 'match') {
-                let html = `<div class="question-text">${idx+1}. Установите соответствие:</div><div class="match-row">`;
-                html += `<div class="match-col"><strong>Левый столбец</strong><ul style="list-style:none; padding-left:0;">`;
-                q.data.left.forEach((item, i) => { html += `<li class="match-item">${i+1}. ${item}</li>`; });
-                html += `</ul></div><div class="match-col"><strong>Правый столбец</strong>`;
+            else if (q.type === "match") {
+                const matchDiv = document.createElement("div");
+                matchDiv.className = "match-row";
+                const leftCol = document.createElement("div");
+                leftCol.className = "match-col";
+                leftCol.innerHTML = "<strong>Левый столбец</strong><ul style='list-style:none; padding-left:0;'></ul>";
+                const ul = leftCol.querySelector("ul");
+                q.data.left.forEach((item, i) => {
+                    const li = document.createElement("li");
+                    li.className = "match-item";
+                    li.innerText = `${i+1}. ${item}`;
+                    ul.appendChild(li);
+                });
+                const rightCol = document.createElement("div");
+                rightCol.className = "match-col";
+                rightCol.innerHTML = "<strong>Правый столбец</strong>";
                 for (let i = 0; i < q.data.left.length; i++) {
-                    html += `<div class="match-item"><select id="match-${idx}-${i}"><option value="">-- выберите --</option>`;
-                    q.data.right.forEach((r, ri) => { html += `<option value="${ri}">${r}</option>`; });
-                    html += `</select></div>`;
+                    const select = document.createElement("select");
+                    select.id = `match-${idx}-${i}`;
+                    select.innerHTML = `<option value="">-- выберите --</option>`;
+                    q.data.right.forEach((r, ri) => {
+                        const option = document.createElement("option");
+                        option.value = ri;
+                        option.textContent = r;
+                        select.appendChild(option);
+                    });
+                    const div = document.createElement("div");
+                    div.className = "match-item";
+                    div.appendChild(select);
+                    rightCol.appendChild(div);
                 }
-                html += `</div></div><button class="btn-check" id="btn-check-${idx}">🔍 Подтвердить</button>
-                         <div class="correct-feedback" id="fb-${idx}"></div>`;
-                card.innerHTML = html;
+                matchDiv.appendChild(leftCol);
+                matchDiv.appendChild(rightCol);
+                card.appendChild(matchDiv);
             }
+            const feedback = document.createElement("div");
+            feedback.className = "feedback";
+            feedback.id = `fb-${idx}`;
+            card.appendChild(feedback);
             container.appendChild(card);
         });
-        attachHandlers();
     }
 
-    function checkAllAnswers() {
-        let total = currentQuestions.length;
+    // Проверка всех ответов текущего варианта
+    function checkVariant(variant) {
+        let total = variant.length;
         let correctCount = 0;
-        for (let idx = 0; idx < total; idx++) {
-            const res = checkSingleQuestion(idx, true);
-            if (res.isCorrect) correctCount++;
-        }
+        variant.forEach((q, idx) => {
+            const fb = document.getElementById(`fb-${idx}`);
+            let isCorrect = false;
+            let correctAnswerText = "";
+            if (q.type === "choice") {
+                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+                if (selected && parseInt(selected.value) === q.data.correct) {
+                    isCorrect = true;
+                } else {
+                    correctAnswerText = q.data.options[q.data.correct];
+                }
+            } 
+            else if (q.type === "fill") {
+                const input = document.getElementById(`fill-${idx}`);
+                if (input) {
+                    const userVal = input.value.trim().toLowerCase();
+                    const correctVal = q.data.correctAnswer.toLowerCase();
+                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) {
+                        isCorrect = true;
+                    } else {
+                        correctAnswerText = q.data.correctAnswer;
+                    }
+                } else {
+                    correctAnswerText = q.data.correctAnswer;
+                }
+            }
+            else if (q.type === "match") {
+                let allMatch = true;
+                for (let i = 0; i < q.data.left.length; i++) {
+                    const select = document.getElementById(`match-${idx}-${i}`);
+                    const val = select ? parseInt(select.value) : -1;
+                    if (val !== q.data.correct[i]) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch) isCorrect = true;
+                else {
+                    const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join("; ");
+                    correctAnswerText = pairs;
+                }
+            }
+            if (isCorrect) correctCount++;
+            if (fb) {
+                if (isCorrect) {
+                    fb.innerHTML = "✅ Верно";
+                    fb.className = "feedback correct-feedback";
+                } else {
+                    fb.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
+                    fb.className = "feedback wrong-feedback";
+                }
+            }
+        });
         const percent = Math.round((correctCount / total) * 100);
-        document.getElementById('result').innerHTML = `📊 Правильных ответов: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Отлично!' : '📚 Повторите материал'}`;
+        const resultDiv = document.getElementById("resultBlock");
+        resultDiv.innerHTML = `📊 Результат: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? "🎉 Экзамен сдан!" : "📚 Повторите материал"}`;
     }
 
-    function initAndShuffle() {
-        currentQuestions = JSON.parse(JSON.stringify(fullQuestionsData));
-        currentQuestions = shuffleArray(currentQuestions);
-        currentQuestions = shuffleOptionsInQuestions(currentQuestions);
-        renderTest();
-        document.getElementById('result').innerHTML = '🔄 Вопросы перемешаны. Варианты ответов — вертикально.';
+    // Генерация нового варианта
+    function generateNewVariant() {
+        if (!fullQuestionsData) {
+            alert("База вопросов не загружена. Проверьте файл questions_data.js");
+            return;
+        }
+        currentVariant = getRandomVariant(fullQuestionsData, 30);
+        renderVariant(currentVariant);
+        document.getElementById("resultBlock").innerHTML = "Новый вариант из 30 вопросов. Отвечайте и нажмите «Завершить вариант».";
+        // Очищаем все старые сообщения обратной связи (на случай, если остались)
+        const allFeedbacks = document.querySelectorAll(".feedback");
+        allFeedbacks.forEach(fb => {
+            fb.innerHTML = "";
+            fb.className = "feedback";
+        });
     }
 
-    document.getElementById('checkAllBtn').addEventListener('click', checkAllAnswers);
-    document.getElementById('shuffleBtn').addEventListener('click', () => initAndShuffle());
-    initAndShuffle();
+    // Обработчики кнопок
+    document.getElementById("generateBtn").addEventListener("click", () => {
+        generateNewVariant();
+    });
+    document.getElementById("checkBtn").addEventListener("click", () => {
+        if (currentVariant.length === 0) {
+            alert("Сначала создайте вариант (кнопка «Создать вариант»).");
+            return;
+        }
+        checkVariant(currentVariant);
+    });
+
+    // Автоматически создаём первый вариант при загрузке
+    generateNewVariant();
 </script>
 </body>
 </html>
