@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Экзамен: генератор вариантов</title>
+    <title>Экзамен: Анатомия и физиология</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -166,6 +166,14 @@
             color: #ac2c34;
             border-left: 5px solid #dc3545;
         }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 28px;
+            text-align: center;
+            margin: 20px 0;
+        }
         footer {
             text-align: center;
             font-size: 0.8rem;
@@ -191,20 +199,25 @@
         <button id="btnAll" class="btn-mode">📖 Все вопросы (полный экзамен)</button>
         <button id="checkBtn">✅ Завершить и проверить</button>
     </div>
-    <div id="resultBlock" class="result-panel">Выберите режим и нажмите «Завершить» после ответов.</div>
+    <div id="resultBlock" class="result-panel">Загрузка базы вопросов...</div>
     <div id="questionsContainer"></div>
-    <footer>В режиме «Вариант» случайно выбираются 30 вопросов (с перемешиванием ответов). В режиме «Все вопросы» отображается вся база без перемешивания (но ответы проверяются).</footer>
+    <footer>Режим «Вариант»: 30 случайных вопросов с перемешиванием ответов. «Все вопросы»: полная база.</footer>
 </div>
 
+<script src="questions_data.js"></script>
 <script>
-    // --------------------------------------------------------------
-    // ЗАГРУЗКА БАЗЫ ВОПРОСОВ ИЗ ФАЙЛА questions_data.js
-    // --------------------------------------------------------------
-    let fullBank = [];  // будет заполнено из внешнего файла или из резервной базы
+    let fullBank = [];
+    let currentQuestions = [];
 
-    // Функция для глубокого клонирования вопроса (чтобы не мутировать оригинал)
-    function cloneQuestion(q) {
-        return JSON.parse(JSON.stringify(q));
+    // Ждём загрузки внешнего файла
+    function init() {
+        if (typeof fullQuestionsData !== 'undefined' && Array.isArray(fullQuestionsData)) {
+            fullBank = fullQuestionsData;
+            document.getElementById('resultBlock').innerHTML = `✅ База загружена: ${fullBank.length} вопросов. Выберите режим.`;
+        } else {
+            document.getElementById('resultBlock').innerHTML = '❌ Ошибка: файл questions_data.js не загружен или переменная fullQuestionsData не найдена. Убедитесь, что файл лежит рядом и содержит const fullQuestionsData = [...];';
+            document.getElementById('resultBlock').className = 'result-panel error-message';
+        }
     }
 
     // Перемешивание массива
@@ -216,62 +229,45 @@
         return arr;
     }
 
-    // Перемешивание вариантов ответов внутри вопроса (для choice и match)
+    // Перемешивание вариантов ответов (для choice и match)
     function shuffleOptionsInQuestion(q) {
-        if (q.type === 'choice') {
-            const origOpt = q.data.options;
-            const origCorrect = q.data.correct;
-            const indices = origOpt.map((_, idx) => idx);
+        const clone = JSON.parse(JSON.stringify(q));
+        if (clone.type === 'choice') {
+            const indices = clone.data.options.map((_, i) => i);
             shuffleArray(indices);
-            const newOpt = indices.map(i => origOpt[i]);
-            const newCorrect = indices.indexOf(origCorrect);
-            q.data.options = newOpt;
-            q.data.correct = newCorrect;
-        } else if (q.type === 'match') {
-            const right = q.data.right;
-            const correctIdx = q.data.correct;
-            const indices = right.map((_, idx) => idx);
-            shuffleArray(indices);
-            const newRight = indices.map(i => right[i]);
-            const newCorrect = correctIdx.map(old => indices.indexOf(old));
-            q.data.right = newRight;
-            q.data.correct = newCorrect;
+            clone.data.options = indices.map(i => clone.data.options[i]);
+            clone.data.correct = indices.indexOf(clone.data.correct);
+        } else if (clone.type === 'match') {
+            const rightIndices = clone.data.right.map((_, i) => i);
+            shuffleArray(rightIndices);
+            clone.data.right = rightIndices.map(i => clone.data.right[i]);
+            clone.data.correct = clone.data.correct.map(old => rightIndices.indexOf(old));
         }
-        return q;
+        return clone;
     }
 
-    // Получить случайный вариант из 30 вопросов (с перемешиванием ответов)
+    // Случайные 30 вопросов с перемешиванием ответов
     function getRandomVariant(bank, size = 30) {
         if (!bank.length) return [];
         const shuffled = shuffleArray([...bank]);
-        const selected = shuffled.slice(0, size).map(q => cloneQuestion(q));
-        // перемешиваем ответы в каждом выбранном вопросе
-        for (let i = 0; i < selected.length; i++) {
-            if (selected[i].type === 'choice' || selected[i].type === 'match') {
-                shuffleOptionsInQuestion(selected[i]);
-            }
-        }
-        return selected;
+        const selected = shuffled.slice(0, size);
+        return selected.map(q => shuffleOptionsInQuestion(q));
     }
 
-    // Получить все вопросы (без перемешивания ответов, но с клонированием)
+    // Все вопросы (без перемешивания ответов)
     function getAllQuestions(bank) {
-        return bank.map(q => cloneQuestion(q));
+        return bank.map(q => JSON.parse(JSON.stringify(q)));
     }
 
-    // --------------------------------------------------------------
-    // ОТРИСОВКА ТЕКУЩЕГО НАБОРА ВОПРОСОВ
-    // --------------------------------------------------------------
-    let currentQuestions = [];
-
-    function renderQuestions(questionsArray) {
+    // Отрисовка текущего набора
+    function renderQuestions(questions) {
         const container = document.getElementById('questionsContainer');
         container.innerHTML = '';
-        if (!questionsArray.length) {
-            container.innerHTML = '<div class="result-panel">Нет вопросов. Загрузите базу.</div>';
+        if (!questions.length) {
+            container.innerHTML = '<div class="result-panel">Нет вопросов для отображения</div>';
             return;
         }
-        questionsArray.forEach((q, idx) => {
+        questions.forEach((q, idx) => {
             const card = document.createElement('div');
             card.className = 'question-card';
             const header = document.createElement('div');
@@ -279,7 +275,6 @@
             if (q.type === 'choice') header.innerText = `${idx+1}. Выберите один ответ`;
             else if (q.type === 'fill') header.innerText = `${idx+1}. Дополните`;
             else if (q.type === 'match') header.innerText = `${idx+1}. Установите соответствие`;
-            else header.innerText = `${idx+1}. Вопрос`;
             card.appendChild(header);
 
             if (q.type === 'choice') {
@@ -301,8 +296,7 @@
                     optionsDiv.appendChild(label);
                 });
                 card.appendChild(optionsDiv);
-            }
-            else if (q.type === 'fill') {
+            } else if (q.type === 'fill') {
                 const textDiv = document.createElement('div');
                 textDiv.style.marginBottom = '12px';
                 textDiv.style.fontWeight = '500';
@@ -313,8 +307,7 @@
                 input.className = 'fill-input';
                 input.id = `fill-${idx}`;
                 card.appendChild(input);
-            }
-            else if (q.type === 'match') {
+            } else if (q.type === 'match') {
                 const matchDiv = document.createElement('div');
                 matchDiv.className = 'match-row';
                 const leftCol = document.createElement('div');
@@ -357,9 +350,7 @@
         });
     }
 
-    // --------------------------------------------------------------
-    // ПРОВЕРКА ВСЕХ ОТВЕТОВ ТЕКУЩЕГО НАБОРА
-    // --------------------------------------------------------------
+    // Проверка всех ответов
     function checkAllAnswers() {
         if (!currentQuestions.length) {
             alert('Сначала выберите режим (кнопка "Случайный вариант" или "Все вопросы").');
@@ -380,8 +371,7 @@
                 } else {
                     correctAnswerText = q.data.options[q.data.correct];
                 }
-            }
-            else if (q.type === 'fill') {
+            } else if (q.type === 'fill') {
                 const input = document.getElementById(`fill-${idx}`);
                 if (input) {
                     const userVal = input.value.trim().toLowerCase();
@@ -394,8 +384,7 @@
                 } else {
                     correctAnswerText = q.data.correctAnswer;
                 }
-            }
-            else if (q.type === 'match') {
+            } else if (q.type === 'match') {
                 let allMatch = true;
                 for (let i = 0; i < q.data.left.length; i++) {
                     const select = document.getElementById(`match-${idx}-${i}`);
@@ -429,57 +418,31 @@
         resultDiv.innerHTML = `📊 Результат: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Экзамен сдан!' : '📚 Повторите материал'}`;
     }
 
-    // --------------------------------------------------------------
-    // ЗАГРУЗКА БАЗЫ ИЗ ФАЙЛА (с резервными вопросами, если файла нет)
-    // --------------------------------------------------------------
-    function loadQuestions() {
-        return new Promise((resolve) => {
-            if (typeof fullQuestionsData !== 'undefined') {
-                fullBank = fullQuestionsData;
-                resolve(true);
-            } else {
-                // Резервная демо-база на случай отсутствия questions_data.js
-                console.warn('Файл questions_data.js не загружен, использую демо-вопросы.');
-                fullBank = [
-                    { type: 'choice', data: { text: "Демо: Какой орган отвечает за иммунитет?", options: ["Печень","Селезенка","Тимус","Почки"], correct: 2 } },
-                    { type: 'choice', data: { text: "Сколько пар ребер у человека?", options: ["10","12","14","8"], correct: 1 } },
-                    { type: 'fill', data: { text: "Кислород переносится ______", correctAnswer: "гемоглобином" } },
-                    { type: 'match', data: { left: ["Артерии","Вены"], right: ["К сердцу","От сердца"], correct: [1,0] } }
-                ];
-                resolve(true);
-            }
-        });
-    }
-
-    // --------------------------------------------------------------
-    // ИНИЦИАЛИЗАЦИЯ И ОБРАБОТЧИКИ
-    // --------------------------------------------------------------
+    // Обработчики
     document.getElementById('btnVariant').addEventListener('click', () => {
         if (!fullBank.length) {
-            alert('База вопросов не загружена. Подождите или проверьте файл.');
+            alert('База вопросов не загружена. Проверьте файл questions_data.js');
             return;
         }
         currentQuestions = getRandomVariant(fullBank, 30);
         renderQuestions(currentQuestions);
-        document.getElementById('resultBlock').innerHTML = 'Случайный вариант из 30 вопросов. Отвечайте и нажмите «Завершить».';
+        document.getElementById('resultBlock').innerHTML = `Случайный вариант из 30 вопросов.`;
     });
 
     document.getElementById('btnAll').addEventListener('click', () => {
         if (!fullBank.length) {
-            alert('База вопросов не загружена. Подождите или проверьте файл.');
+            alert('База вопросов не загружена. Проверьте файл questions_data.js');
             return;
         }
         currentQuestions = getAllQuestions(fullBank);
         renderQuestions(currentQuestions);
-        document.getElementById('resultBlock').innerHTML = `Полный экзамен (${currentQuestions.length} вопросов). Отвечайте и нажмите «Завершить».`;
+        document.getElementById('resultBlock').innerHTML = `Полный экзамен (${currentQuestions.length} вопросов).`;
     });
 
     document.getElementById('checkBtn').addEventListener('click', checkAllAnswers);
 
-    // Загружаем базу и после этого показываем сообщение
-    loadQuestions().then(() => {
-        document.getElementById('resultBlock').innerHTML = `База загружена (${fullBank.length} вопросов). Выберите режим.`;
-    });
+    // Запуск после загрузки внешнего скрипта
+    init();
 </script>
 </body>
 </html>
