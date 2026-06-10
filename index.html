@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Экзамен: генератор вариантов</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
             background: #eef2f5;
@@ -30,8 +26,6 @@
             font-size: 1.9rem;
             margin-bottom: 8px;
             border-bottom: 3px solid #cbdde9;
-            display: inline-block;
-            width: 100%;
             padding-bottom: 12px;
         }
         .sub {
@@ -63,7 +57,7 @@
             background: #1f5e7a;
             transform: scale(1.02);
         }
-        .btn-generate {
+        .btn-mode {
             background: #5f6c7a;
         }
         .result-panel {
@@ -193,25 +187,27 @@
     <h1>📚 Экзамен</h1>
     <div class="sub">Анатомия · Физиология · Патология</div>
     <div class="controls">
-        <button id="generateBtn" class="btn-generate">🎲 Создать вариант (30 вопросов)</button>
-        <button id="checkBtn">✅ Завершить вариант</button>
+        <button id="btnVariant" class="btn-mode">🎲 Случайный вариант (30 вопросов)</button>
+        <button id="btnAll" class="btn-mode">📖 Все вопросы (полный экзамен)</button>
+        <button id="checkBtn">✅ Завершить и проверить</button>
     </div>
-    <div id="resultBlock" class="result-panel">Нажмите «Создать вариант» для начала.</div>
+    <div id="resultBlock" class="result-panel">Выберите режим и нажмите «Завершить» после ответов.</div>
     <div id="questionsContainer"></div>
-    <footer>Каждый вариант содержит 30 случайных вопросов из общей базы. Ответы сохраняются при смене варианта.</footer>
+    <footer>В режиме «Вариант» случайно выбираются 30 вопросов (с перемешиванием ответов). В режиме «Все вопросы» отображается вся база без перемешивания (но ответы проверяются).</footer>
 </div>
 
-<script src="questions_data.js"></script>
 <script>
-    // Массив fullQuestionsData должен быть определён в подключаемом файле
-    if (typeof fullQuestionsData === 'undefined') {
-        console.error("Файл questions_data.js не загружен или переменная fullQuestionsData не найдена.");
-        alert("Ошибка: не найден файл questions_data.js. Убедитесь, что он лежит в той же папке.");
+    // --------------------------------------------------------------
+    // ЗАГРУЗКА БАЗЫ ВОПРОСОВ ИЗ ФАЙЛА questions_data.js
+    // --------------------------------------------------------------
+    let fullBank = [];  // будет заполнено из внешнего файла или из резервной базы
+
+    // Функция для глубокого клонирования вопроса (чтобы не мутировать оригинал)
+    function cloneQuestion(q) {
+        return JSON.parse(JSON.stringify(q));
     }
 
-    let currentVariant = [];  // выбранные 30 вопросов
-
-    // Функция случайного перемешивания массива
+    // Перемешивание массива
     function shuffleArray(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -220,73 +216,84 @@
         return arr;
     }
 
-    // Перемешивание вариантов ответов для choice и match (для match – правый столбец)
-    function shuffleOptionsInQuestions(questionsArray) {
-        for (let q of questionsArray) {
-            if (q.type === 'choice') {
-                const origOptions = q.data.options;
-                const origCorrect = q.data.correct;
-                const indices = origOptions.map((_, idx) => idx);
-                shuffleArray(indices);
-                const newOptions = indices.map(i => origOptions[i]);
-                const newCorrect = indices.indexOf(origCorrect);
-                q.data.options = newOptions;
-                q.data.correct = newCorrect;
-            } else if (q.type === 'match') {
-                const rightItems = q.data.right;
-                const correctIndices = q.data.correct;
-                const rightIndices = rightItems.map((_, idx) => idx);
-                shuffleArray(rightIndices);
-                const newRight = rightIndices.map(i => rightItems[i]);
-                const newCorrect = q.data.correct.map(oldIdx => rightIndices.indexOf(oldIdx));
-                q.data.right = newRight;
-                q.data.correct = newCorrect;
+    // Перемешивание вариантов ответов внутри вопроса (для choice и match)
+    function shuffleOptionsInQuestion(q) {
+        if (q.type === 'choice') {
+            const origOpt = q.data.options;
+            const origCorrect = q.data.correct;
+            const indices = origOpt.map((_, idx) => idx);
+            shuffleArray(indices);
+            const newOpt = indices.map(i => origOpt[i]);
+            const newCorrect = indices.indexOf(origCorrect);
+            q.data.options = newOpt;
+            q.data.correct = newCorrect;
+        } else if (q.type === 'match') {
+            const right = q.data.right;
+            const correctIdx = q.data.correct;
+            const indices = right.map((_, idx) => idx);
+            shuffleArray(indices);
+            const newRight = indices.map(i => right[i]);
+            const newCorrect = correctIdx.map(old => indices.indexOf(old));
+            q.data.right = newRight;
+            q.data.correct = newCorrect;
+        }
+        return q;
+    }
+
+    // Получить случайный вариант из 30 вопросов (с перемешиванием ответов)
+    function getRandomVariant(bank, size = 30) {
+        if (!bank.length) return [];
+        const shuffled = shuffleArray([...bank]);
+        const selected = shuffled.slice(0, size).map(q => cloneQuestion(q));
+        // перемешиваем ответы в каждом выбранном вопросе
+        for (let i = 0; i < selected.length; i++) {
+            if (selected[i].type === 'choice' || selected[i].type === 'match') {
+                shuffleOptionsInQuestion(selected[i]);
             }
         }
-        return questionsArray;
+        return selected;
     }
 
-    // Выбор случайных 30 вопросов (без повторов)
-    function getRandomVariant(bank, size = 30) {
-        if (bank.length < size) {
-            console.warn("В базе меньше 30 вопросов, возвращаю все имеющиеся.");
-            return [...bank];
+    // Получить все вопросы (без перемешивания ответов, но с клонированием)
+    function getAllQuestions(bank) {
+        return bank.map(q => cloneQuestion(q));
+    }
+
+    // --------------------------------------------------------------
+    // ОТРИСОВКА ТЕКУЩЕГО НАБОРА ВОПРОСОВ
+    // --------------------------------------------------------------
+    let currentQuestions = [];
+
+    function renderQuestions(questionsArray) {
+        const container = document.getElementById('questionsContainer');
+        container.innerHTML = '';
+        if (!questionsArray.length) {
+            container.innerHTML = '<div class="result-panel">Нет вопросов. Загрузите базу.</div>';
+            return;
         }
-        const shuffledBank = shuffleArray([...bank]);
-        // Возвращаем копию первых size вопросов, но без перемешивания их внутренностей – это сделаем отдельно
-        const selected = shuffledBank.slice(0, size).map(q => JSON.parse(JSON.stringify(q))); // глубокое копирование
-        // Перемешиваем варианты ответов внутри каждого вопроса (для choice и match)
-        return shuffleOptionsInQuestions(selected);
-    }
-
-    // Отрисовка текущего варианта
-    function renderVariant(variant) {
-        const container = document.getElementById("questionsContainer");
-        container.innerHTML = "";
-        variant.forEach((q, idx) => {
-            const card = document.createElement("div");
-            card.className = "question-card";
-            card.dataset.qid = idx;
-            const header = document.createElement("div");
-            header.className = "question-header";
-            if (q.type === "choice") header.innerText = `${idx+1}. Выберите один ответ`;
-            else if (q.type === "fill") header.innerText = `${idx+1}. Дополните`;
-            else if (q.type === "match") header.innerText = `${idx+1}. Установите соответствие`;
+        questionsArray.forEach((q, idx) => {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            const header = document.createElement('div');
+            header.className = 'question-header';
+            if (q.type === 'choice') header.innerText = `${idx+1}. Выберите один ответ`;
+            else if (q.type === 'fill') header.innerText = `${idx+1}. Дополните`;
+            else if (q.type === 'match') header.innerText = `${idx+1}. Установите соответствие`;
             else header.innerText = `${idx+1}. Вопрос`;
             card.appendChild(header);
-            
-            if (q.type === "choice") {
-                const textDiv = document.createElement("div");
-                textDiv.style.marginBottom = "12px";
-                textDiv.style.fontWeight = "500";
+
+            if (q.type === 'choice') {
+                const textDiv = document.createElement('div');
+                textDiv.style.marginBottom = '12px';
+                textDiv.style.fontWeight = '500';
                 textDiv.innerText = q.data.text;
                 card.appendChild(textDiv);
-                const optionsDiv = document.createElement("div");
-                optionsDiv.className = "options";
+                const optionsDiv = document.createElement('div');
+                optionsDiv.className = 'options';
                 q.data.options.forEach((opt, optIdx) => {
-                    const label = document.createElement("label");
-                    const radio = document.createElement("input");
-                    radio.type = "radio";
+                    const label = document.createElement('label');
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
                     radio.name = `q${idx}`;
                     radio.value = optIdx;
                     label.appendChild(radio);
@@ -294,47 +301,47 @@
                     optionsDiv.appendChild(label);
                 });
                 card.appendChild(optionsDiv);
-            } 
-            else if (q.type === "fill") {
-                const textDiv = document.createElement("div");
-                textDiv.style.marginBottom = "12px";
-                textDiv.style.fontWeight = "500";
+            }
+            else if (q.type === 'fill') {
+                const textDiv = document.createElement('div');
+                textDiv.style.marginBottom = '12px';
+                textDiv.style.fontWeight = '500';
                 textDiv.innerText = q.data.text;
                 card.appendChild(textDiv);
-                const input = document.createElement("input");
-                input.type = "text";
-                input.className = "fill-input";
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'fill-input';
                 input.id = `fill-${idx}`;
                 card.appendChild(input);
             }
-            else if (q.type === "match") {
-                const matchDiv = document.createElement("div");
-                matchDiv.className = "match-row";
-                const leftCol = document.createElement("div");
-                leftCol.className = "match-col";
-                leftCol.innerHTML = "<strong>Левый столбец</strong><ul style='list-style:none; padding-left:0;'></ul>";
-                const ul = leftCol.querySelector("ul");
+            else if (q.type === 'match') {
+                const matchDiv = document.createElement('div');
+                matchDiv.className = 'match-row';
+                const leftCol = document.createElement('div');
+                leftCol.className = 'match-col';
+                leftCol.innerHTML = '<strong>Левый столбец</strong><ul style="list-style:none; padding-left:0;"></ul>';
+                const ul = leftCol.querySelector('ul');
                 q.data.left.forEach((item, i) => {
-                    const li = document.createElement("li");
-                    li.className = "match-item";
+                    const li = document.createElement('li');
+                    li.className = 'match-item';
                     li.innerText = `${i+1}. ${item}`;
                     ul.appendChild(li);
                 });
-                const rightCol = document.createElement("div");
-                rightCol.className = "match-col";
-                rightCol.innerHTML = "<strong>Правый столбец</strong>";
+                const rightCol = document.createElement('div');
+                rightCol.className = 'match-col';
+                rightCol.innerHTML = '<strong>Правый столбец</strong>';
                 for (let i = 0; i < q.data.left.length; i++) {
-                    const select = document.createElement("select");
+                    const select = document.createElement('select');
                     select.id = `match-${idx}-${i}`;
-                    select.innerHTML = `<option value="">-- выберите --</option>`;
+                    select.innerHTML = '<option value="">-- выберите --</option>';
                     q.data.right.forEach((r, ri) => {
-                        const option = document.createElement("option");
+                        const option = document.createElement('option');
                         option.value = ri;
                         option.textContent = r;
                         select.appendChild(option);
                     });
-                    const div = document.createElement("div");
-                    div.className = "match-item";
+                    const div = document.createElement('div');
+                    div.className = 'match-item';
                     div.appendChild(select);
                     rightCol.appendChild(div);
                 }
@@ -342,36 +349,44 @@
                 matchDiv.appendChild(rightCol);
                 card.appendChild(matchDiv);
             }
-            const feedback = document.createElement("div");
-            feedback.className = "feedback";
+            const feedback = document.createElement('div');
+            feedback.className = 'feedback';
             feedback.id = `fb-${idx}`;
             card.appendChild(feedback);
             container.appendChild(card);
         });
     }
 
-    // Проверка всех ответов текущего варианта
-    function checkVariant(variant) {
-        let total = variant.length;
+    // --------------------------------------------------------------
+    // ПРОВЕРКА ВСЕХ ОТВЕТОВ ТЕКУЩЕГО НАБОРА
+    // --------------------------------------------------------------
+    function checkAllAnswers() {
+        if (!currentQuestions.length) {
+            alert('Сначала выберите режим (кнопка "Случайный вариант" или "Все вопросы").');
+            return;
+        }
+        let total = currentQuestions.length;
         let correctCount = 0;
-        variant.forEach((q, idx) => {
+        for (let idx = 0; idx < currentQuestions.length; idx++) {
+            const q = currentQuestions[idx];
             const fb = document.getElementById(`fb-${idx}`);
             let isCorrect = false;
-            let correctAnswerText = "";
-            if (q.type === "choice") {
+            let correctAnswerText = '';
+
+            if (q.type === 'choice') {
                 const selected = document.querySelector(`input[name="q${idx}"]:checked`);
                 if (selected && parseInt(selected.value) === q.data.correct) {
                     isCorrect = true;
                 } else {
                     correctAnswerText = q.data.options[q.data.correct];
                 }
-            } 
-            else if (q.type === "fill") {
+            }
+            else if (q.type === 'fill') {
                 const input = document.getElementById(`fill-${idx}`);
                 if (input) {
                     const userVal = input.value.trim().toLowerCase();
                     const correctVal = q.data.correctAnswer.toLowerCase();
-                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) {
+                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== '')) {
                         isCorrect = true;
                     } else {
                         correctAnswerText = q.data.correctAnswer;
@@ -380,7 +395,7 @@
                     correctAnswerText = q.data.correctAnswer;
                 }
             }
-            else if (q.type === "match") {
+            else if (q.type === 'match') {
                 let allMatch = true;
                 for (let i = 0; i < q.data.left.length; i++) {
                     const select = document.getElementById(`match-${idx}-${i}`);
@@ -390,59 +405,81 @@
                         break;
                     }
                 }
-                if (allMatch) isCorrect = true;
-                else {
-                    const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join("; ");
+                if (allMatch) {
+                    isCorrect = true;
+                } else {
+                    const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
                     correctAnswerText = pairs;
                 }
             }
+
             if (isCorrect) correctCount++;
             if (fb) {
                 if (isCorrect) {
-                    fb.innerHTML = "✅ Верно";
-                    fb.className = "feedback correct-feedback";
+                    fb.innerHTML = '✅ Верно';
+                    fb.className = 'feedback correct-feedback';
                 } else {
                     fb.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
-                    fb.className = "feedback wrong-feedback";
+                    fb.className = 'feedback wrong-feedback';
                 }
             }
-        });
+        }
         const percent = Math.round((correctCount / total) * 100);
-        const resultDiv = document.getElementById("resultBlock");
-        resultDiv.innerHTML = `📊 Результат: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? "🎉 Экзамен сдан!" : "📚 Повторите материал"}`;
+        const resultDiv = document.getElementById('resultBlock');
+        resultDiv.innerHTML = `📊 Результат: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Экзамен сдан!' : '📚 Повторите материал'}`;
     }
 
-    // Генерация нового варианта
-    function generateNewVariant() {
-        if (!fullQuestionsData) {
-            alert("База вопросов не загружена. Проверьте файл questions_data.js");
-            return;
-        }
-        currentVariant = getRandomVariant(fullQuestionsData, 30);
-        renderVariant(currentVariant);
-        document.getElementById("resultBlock").innerHTML = "Новый вариант из 30 вопросов. Отвечайте и нажмите «Завершить вариант».";
-        // Очищаем все старые сообщения обратной связи (на случай, если остались)
-        const allFeedbacks = document.querySelectorAll(".feedback");
-        allFeedbacks.forEach(fb => {
-            fb.innerHTML = "";
-            fb.className = "feedback";
+    // --------------------------------------------------------------
+    // ЗАГРУЗКА БАЗЫ ИЗ ФАЙЛА (с резервными вопросами, если файла нет)
+    // --------------------------------------------------------------
+    function loadQuestions() {
+        return new Promise((resolve) => {
+            if (typeof fullQuestionsData !== 'undefined') {
+                fullBank = fullQuestionsData;
+                resolve(true);
+            } else {
+                // Резервная демо-база на случай отсутствия questions_data.js
+                console.warn('Файл questions_data.js не загружен, использую демо-вопросы.');
+                fullBank = [
+                    { type: 'choice', data: { text: "Демо: Какой орган отвечает за иммунитет?", options: ["Печень","Селезенка","Тимус","Почки"], correct: 2 } },
+                    { type: 'choice', data: { text: "Сколько пар ребер у человека?", options: ["10","12","14","8"], correct: 1 } },
+                    { type: 'fill', data: { text: "Кислород переносится ______", correctAnswer: "гемоглобином" } },
+                    { type: 'match', data: { left: ["Артерии","Вены"], right: ["К сердцу","От сердца"], correct: [1,0] } }
+                ];
+                resolve(true);
+            }
         });
     }
 
-    // Обработчики кнопок
-    document.getElementById("generateBtn").addEventListener("click", () => {
-        generateNewVariant();
-    });
-    document.getElementById("checkBtn").addEventListener("click", () => {
-        if (currentVariant.length === 0) {
-            alert("Сначала создайте вариант (кнопка «Создать вариант»).");
+    // --------------------------------------------------------------
+    // ИНИЦИАЛИЗАЦИЯ И ОБРАБОТЧИКИ
+    // --------------------------------------------------------------
+    document.getElementById('btnVariant').addEventListener('click', () => {
+        if (!fullBank.length) {
+            alert('База вопросов не загружена. Подождите или проверьте файл.');
             return;
         }
-        checkVariant(currentVariant);
+        currentQuestions = getRandomVariant(fullBank, 30);
+        renderQuestions(currentQuestions);
+        document.getElementById('resultBlock').innerHTML = 'Случайный вариант из 30 вопросов. Отвечайте и нажмите «Завершить».';
     });
 
-    // Автоматически создаём первый вариант при загрузке
-    generateNewVariant();
+    document.getElementById('btnAll').addEventListener('click', () => {
+        if (!fullBank.length) {
+            alert('База вопросов не загружена. Подождите или проверьте файл.');
+            return;
+        }
+        currentQuestions = getAllQuestions(fullBank);
+        renderQuestions(currentQuestions);
+        document.getElementById('resultBlock').innerHTML = `Полный экзамен (${currentQuestions.length} вопросов). Отвечайте и нажмите «Завершить».`;
+    });
+
+    document.getElementById('checkBtn').addEventListener('click', checkAllAnswers);
+
+    // Загружаем базу и после этого показываем сообщение
+    loadQuestions().then(() => {
+        document.getElementById('resultBlock').innerHTML = `База загружена (${fullBank.length} вопросов). Выберите режим.`;
+    });
 </script>
 </body>
 </html>
