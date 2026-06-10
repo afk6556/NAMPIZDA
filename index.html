@@ -60,6 +60,16 @@
         .btn-mode {
             background: #5f6c7a;
         }
+        .btn-confirm {
+            background: #28a745;
+            padding: 6px 20px;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        .btn-confirm:hover {
+            background: #218838;
+        }
         .result-panel {
             background: #f0f7fc;
             padding: 18px;
@@ -191,28 +201,31 @@
         <button id="btnAll" class="btn-mode">📖 Все вопросы (перемешаны)</button>
         <button id="checkBtn">📊 Показать общий результат</button>
     </div>
-    <div id="resultBlock" class="result-panel">Выберите режим. Ответы проверяются сразу.</div>
+    <div id="resultBlock" class="result-panel">Выберите режим. Для вопросов с выбором – ответ сразу; для дополнений и соответствий – нажмите «Подтвердить».</div>
     <div id="questionsContainer"></div>
-    <footer>✔️ Ответы проверяются мгновенно. В режиме варианта вопросы не повторяются, пока не пройдёте все.</footer>
+    <footer>✔️ Для choice – мгновенная проверка. Для fill/match – кнопка «Подтвердить» (Enter тоже работает).</footer>
 </div>
 
 <script src="questions_data.js"></script>
 <script>
-    let fullBank = [];          // исходная база
-    let currentQuestions = [];  // текущий отображаемый набор (массив объектов)
-    let remainingPool = [];     // для режима варианта: список ещё не выданных вопросов (перемешанная копия fullBank)
+    let fullBank = [];
+    let currentQuestions = [];
+    let remainingPool = [];      // для вариантного режима (очередь новых вопросов)
     let variantModeActive = false;
 
-    // Загрузка базы из внешнего файла
+    // Хранилище правильности ответов для каждого вопроса (индекс -> true/false)
+    let answerStatus = [];
+
+    // Загрузка базы
     if (typeof fullQuestionsData !== 'undefined' && Array.isArray(fullQuestionsData)) {
         fullBank = fullQuestionsData;
         console.log(`База загружена: ${fullBank.length} вопросов`);
     } else {
         console.error("fullQuestionsData не найдена");
-        document.getElementById('resultBlock').innerHTML = '❌ Ошибка: не найден файл questions_data.js или переменная fullQuestionsData.';
+        document.getElementById('resultBlock').innerHTML = '❌ Ошибка: не найден файл questions_data.js.';
     }
 
-    // Перемешивание массива (ФИШЕР-ЙЕТС)
+    // Перемешивание массива
     function shuffleArray(arr) {
         const a = [...arr];
         for (let i = a.length - 1; i > 0; i--) {
@@ -239,14 +252,12 @@
         return clone;
     }
 
-    // Обновить пул оставшихся вопросов для вариантного режима (если пуст – пересоздать)
+    // Обновление пула для вариантов
     function ensureRemainingPool() {
         if (!remainingPool.length) {
-            // Создаём перемешанную копию всех вопросов, но без перемешивания ответов (это будем делать при выдаче варианта)
             remainingPool = shuffleArray([...fullBank]);
-            // Дополнительно можно показать уведомление
-            const resultDiv = document.getElementById('resultBlock');
-            if (resultDiv && variantModeActive) {
+            if (variantModeActive) {
+                const resultDiv = document.getElementById('resultBlock');
                 resultDiv.innerHTML = '🔄 Начат новый круг вопросов (все вопросы розданы).';
                 setTimeout(() => {
                     if (variantModeActive) resultDiv.innerHTML = 'Режим варианта: вопросы не повторяются.';
@@ -255,45 +266,53 @@
         }
     }
 
-    // Получить случайный вариант из size вопросов (без повторов, из remainingPool)
+    // Получить вариант (size вопросов) без повторов
     function getVariantQuestions(size = 30) {
         if (!fullBank.length) return [];
         ensureRemainingPool();
         const taken = [];
         const takeCount = Math.min(size, remainingPool.length);
         for (let i = 0; i < takeCount; i++) {
-            taken.push(remainingPool.shift()); // берём из начала (очередь)
+            taken.push(remainingPool.shift());
         }
-        // Если после этого remainingPool опустел – при следующем вызове ensureRemainingPool() создаст новый
-        // Теперь нужно перемешать варианты ответов внутри каждого взятого вопроса (чтобы каждый вариант был свежим)
+        // Перемешиваем ответы внутри каждого взятого вопроса
         return taken.map(q => shuffleOptionsInQuestion(q));
     }
 
-    // Получить все вопросы, но в случайном порядке (с перемешиванием порядка и ответов)
+    // Получить все вопросы (перемешанный порядок и ответы)
     function getAllShuffledQuestions() {
         if (!fullBank.length) return [];
-        // Перемешиваем порядок вопросов
         const shuffledOrder = shuffleArray([...fullBank]);
-        // Перемешиваем ответы внутри каждого (choice и match)
         return shuffledOrder.map(q => shuffleOptionsInQuestion(q));
     }
 
-    // Проверка одного вопроса (отображение обратной связи)
-    function checkSingleQuestion(q, idx, showFeedback = true) {
+    // Проверка choice (мгновенная)
+    function checkChoice(idx) {
+        const q = currentQuestions[idx];
+        if (!q || q.type !== 'choice') return;
+        const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+        const isCorrect = selected && parseInt(selected.value) === q.data.correct;
+        answerStatus[idx] = isCorrect;
         const fb = document.getElementById(`fb-${idx}`);
-        if (!fb) return false;
+        if (fb) {
+            if (isCorrect) {
+                fb.innerHTML = '✅ Верно';
+                fb.className = 'feedback correct-feedback';
+            } else {
+                const correctAns = q.data.options[q.data.correct];
+                fb.innerHTML = `❌ Неверно. Правильный ответ: ${correctAns}`;
+                fb.className = 'feedback wrong-feedback';
+            }
+        }
+    }
+
+    // Проверка fill или match (по кнопке)
+    function checkFillOrMatch(idx) {
+        const q = currentQuestions[idx];
+        if (!q) return;
         let isCorrect = false;
         let correctAnswer = '';
-
-        if (q.type === 'choice') {
-            const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-            if (selected && parseInt(selected.value) === q.data.correct) {
-                isCorrect = true;
-            } else {
-                correctAnswer = q.data.options[q.data.correct];
-            }
-        } 
-        else if (q.type === 'fill') {
+        if (q.type === 'fill') {
             const input = document.getElementById(`fill-${idx}`);
             if (input) {
                 const userVal = input.value.trim().toLowerCase();
@@ -304,8 +323,7 @@
                     correctAnswer = q.data.correctAnswer;
                 }
             }
-        }
-        else if (q.type === 'match') {
+        } else if (q.type === 'match') {
             let allMatch = true;
             for (let i = 0; i < q.data.left.length; i++) {
                 const select = document.getElementById(`match-${idx}-${i}`);
@@ -322,8 +340,9 @@
                 correctAnswer = pairs;
             }
         }
-
-        if (showFeedback) {
+        answerStatus[idx] = isCorrect;
+        const fb = document.getElementById(`fb-${idx}`);
+        if (fb) {
             if (isCorrect) {
                 fb.innerHTML = '✅ Верно';
                 fb.className = 'feedback correct-feedback';
@@ -332,45 +351,34 @@
                 fb.className = 'feedback wrong-feedback';
             }
         }
-        return isCorrect;
     }
 
-    // Подсчёт общего количества правильных ответов на текущей странице
-    function computeTotalCorrect() {
-        let correct = 0;
-        for (let idx = 0; idx < currentQuestions.length; idx++) {
-            const q = currentQuestions[idx];
-            if (q.type === 'choice') {
-                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-                if (selected && parseInt(selected.value) === q.data.correct) correct++;
-            } else if (q.type === 'fill') {
-                const input = document.getElementById(`fill-${idx}`);
-                if (input) {
-                    const userVal = input.value.trim().toLowerCase();
-                    const correctVal = q.data.correctAnswer.toLowerCase();
-                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) correct++;
+    // Обработчик Enter для полей ввода и select (имитирует нажатие кнопки подтверждения для текущего вопроса)
+    function onEnterPress(event) {
+        if (event.key === 'Enter') {
+            const active = document.activeElement;
+            const questionCard = active.closest('.question-card');
+            if (questionCard) {
+                const confirmBtn = questionCard.querySelector('.btn-confirm');
+                if (confirmBtn) {
+                    event.preventDefault();
+                    confirmBtn.click();
                 }
-            } else if (q.type === 'match') {
-                let allMatch = true;
-                for (let i = 0; i < q.data.left.length; i++) {
-                    const select = document.getElementById(`match-${idx}-${i}`);
-                    const val = select ? parseInt(select.value) : -1;
-                    if (val !== q.data.correct[i]) { allMatch = false; break; }
-                }
-                if (allMatch) correct++;
             }
         }
-        return correct;
     }
 
-    // Отрисовка вопросов и привязка обработчиков мгновенной проверки
+    // Отрисовка вопросов и привязка обработчиков
     function renderQuestions(questions) {
         const container = document.getElementById('questionsContainer');
         container.innerHTML = '';
+        // Сброс статусов
+        answerStatus = new Array(questions.length).fill(false);
         if (!questions.length) {
             container.innerHTML = '<div class="result-panel">Нет вопросов для отображения</div>';
             return;
         }
+
         questions.forEach((q, idx) => {
             const card = document.createElement('div');
             card.className = 'question-card';
@@ -400,7 +408,7 @@
                     optionsDiv.appendChild(label);
                 });
                 card.appendChild(optionsDiv);
-            } 
+            }
             else if (q.type === 'fill') {
                 const textDiv = document.createElement('div');
                 textDiv.style.marginBottom = '12px';
@@ -412,6 +420,11 @@
                 input.className = 'fill-input';
                 input.id = `fill-${idx}`;
                 card.appendChild(input);
+                const confirmBtn = document.createElement('button');
+                confirmBtn.textContent = '🔍 Подтвердить';
+                confirmBtn.className = 'btn-confirm';
+                confirmBtn.onclick = () => checkFillOrMatch(idx);
+                card.appendChild(confirmBtn);
             }
             else if (q.type === 'match') {
                 const matchDiv = document.createElement('div');
@@ -447,7 +460,13 @@
                 matchDiv.appendChild(leftCol);
                 matchDiv.appendChild(rightCol);
                 card.appendChild(matchDiv);
+                const confirmBtn = document.createElement('button');
+                confirmBtn.textContent = '🔍 Подтвердить';
+                confirmBtn.className = 'btn-confirm';
+                confirmBtn.onclick = () => checkFillOrMatch(idx);
+                card.appendChild(confirmBtn);
             }
+
             const feedback = document.createElement('div');
             feedback.className = 'feedback';
             feedback.id = `fb-${idx}`;
@@ -455,31 +474,31 @@
             container.appendChild(card);
         });
 
-        // Привязываем обработчики мгновенной проверки
+        // Привязка обработчиков для choice (мгновенная)
         for (let idx = 0; idx < questions.length; idx++) {
             const q = questions[idx];
             if (q.type === 'choice') {
                 const radios = document.querySelectorAll(`input[name="q${idx}"]`);
                 radios.forEach(radio => {
-                    radio.addEventListener('change', () => checkSingleQuestion(q, idx, true));
+                    radio.addEventListener('change', () => checkChoice(idx));
                 });
-            } else if (q.type === 'fill') {
-                const input = document.getElementById(`fill-${idx}`);
-                if (input) {
-                    input.addEventListener('input', () => checkSingleQuestion(q, idx, true));
-                }
-            } else if (q.type === 'match') {
-                for (let i = 0; i < q.data.left.length; i++) {
-                    const select = document.getElementById(`match-${idx}-${i}`);
-                    if (select) {
-                        select.addEventListener('change', () => checkSingleQuestion(q, idx, true));
-                    }
-                }
             }
         }
+        // Глобальный обработчик Enter (для fill и match)
+        document.removeEventListener('keydown', onEnterPress);
+        document.addEventListener('keydown', onEnterPress);
     }
 
-    // Показать общий результат по текущему набору
+    // Подсчёт общего результата (правильные из answerStatus)
+    function computeTotalCorrect() {
+        let correct = 0;
+        for (let i = 0; i < answerStatus.length; i++) {
+            if (answerStatus[i]) correct++;
+        }
+        return correct;
+    }
+
+    // Показать общий результат
     function showOverallResult() {
         if (!currentQuestions.length) {
             alert('Сначала выберите режим (кнопка "Случайный вариант" или "Все вопросы").');
@@ -498,7 +517,6 @@
             return;
         }
         variantModeActive = true;
-        // Убедимся, что пул остался или создастся
         ensureRemainingPool();
         const variant = getVariantQuestions(30);
         currentQuestions = variant;
@@ -506,7 +524,7 @@
         document.getElementById('resultBlock').innerHTML = `Случайный вариант (30 вопросов). Осталось в пуле: ${remainingPool.length} новых вопросов.`;
     }
 
-    // Режим "Все вопросы" (перемешанные)
+    // Режим "Все вопросы"
     function activateAllMode() {
         if (!fullBank.length) {
             alert('База вопросов не загружена.');
@@ -524,7 +542,7 @@
     document.getElementById('btnAll').addEventListener('click', activateAllMode);
     document.getElementById('checkBtn').addEventListener('click', showOverallResult);
 
-    // Инициализация (можно сразу включить режим варианта, но пусть будет просто информационное сообщение)
+    // Инициализация
     if (fullBank.length) {
         document.getElementById('resultBlock').innerHTML = `База загружена: ${fullBank.length} вопросов. Выберите режим.`;
     } else {
