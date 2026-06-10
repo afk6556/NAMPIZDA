@@ -166,14 +166,6 @@
             color: #ac2c34;
             border-left: 5px solid #dc3545;
         }
-        .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 20px;
-            border-radius: 28px;
-            text-align: center;
-            margin: 20px 0;
-        }
         footer {
             text-align: center;
             font-size: 0.8rem;
@@ -197,11 +189,11 @@
     <div class="controls">
         <button id="btnVariant" class="btn-mode">🎲 Случайный вариант (30 вопросов)</button>
         <button id="btnAll" class="btn-mode">📖 Все вопросы (полный экзамен)</button>
-        <button id="checkBtn">✅ Завершить и проверить</button>
+        <button id="checkBtn">📊 Показать общий результат</button>
     </div>
-    <div id="resultBlock" class="result-panel">Загрузка базы вопросов...</div>
+    <div id="resultBlock" class="result-panel">Выберите режим. Ответы проверяются сразу.</div>
     <div id="questionsContainer"></div>
-    <footer>Режим «Вариант»: 30 случайных вопросов с перемешиванием ответов. «Все вопросы»: полная база.</footer>
+    <footer>✔️ Ответы проверяются мгновенно. Кнопка «Показать общий результат» показывает количество правильных ответов.</footer>
 </div>
 
 <script src="questions_data.js"></script>
@@ -209,18 +201,16 @@
     let fullBank = [];
     let currentQuestions = [];
 
-    // Ждём загрузки внешнего файла
-    function init() {
-        if (typeof fullQuestionsData !== 'undefined' && Array.isArray(fullQuestionsData)) {
-            fullBank = fullQuestionsData;
-            document.getElementById('resultBlock').innerHTML = `✅ База загружена: ${fullBank.length} вопросов. Выберите режим.`;
-        } else {
-            document.getElementById('resultBlock').innerHTML = '❌ Ошибка: файл questions_data.js не загружен или переменная fullQuestionsData не найдена. Убедитесь, что файл лежит рядом и содержит const fullQuestionsData = [...];';
-            document.getElementById('resultBlock').className = 'result-panel error-message';
-        }
+    // Загрузка базы
+    if (typeof fullQuestionsData !== 'undefined' && Array.isArray(fullQuestionsData)) {
+        fullBank = fullQuestionsData;
+        console.log(`База загружена: ${fullBank.length} вопросов`);
+    } else {
+        console.error("fullQuestionsData не найдена");
+        document.getElementById('resultBlock').innerHTML = '❌ Ошибка: не найден файл questions_data.js или переменная fullQuestionsData.';
     }
 
-    // Перемешивание массива
+    // Утилиты
     function shuffleArray(arr) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -229,7 +219,6 @@
         return arr;
     }
 
-    // Перемешивание вариантов ответов (для choice и match)
     function shuffleOptionsInQuestion(q) {
         const clone = JSON.parse(JSON.stringify(q));
         if (clone.type === 'choice') {
@@ -246,7 +235,6 @@
         return clone;
     }
 
-    // Случайные 30 вопросов с перемешиванием ответов
     function getRandomVariant(bank, size = 30) {
         if (!bank.length) return [];
         const shuffled = shuffleArray([...bank]);
@@ -254,12 +242,99 @@
         return selected.map(q => shuffleOptionsInQuestion(q));
     }
 
-    // Все вопросы (без перемешивания ответов)
     function getAllQuestions(bank) {
         return bank.map(q => JSON.parse(JSON.stringify(q)));
     }
 
-    // Отрисовка текущего набора
+    // Проверка одного вопроса (используется в обработчиках)
+    function checkSingleQuestion(q, idx, showFeedback = true) {
+        const fb = document.getElementById(`fb-${idx}`);
+        if (!fb) return false;
+        let isCorrect = false;
+        let correctAnswer = '';
+
+        if (q.type === 'choice') {
+            const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+            if (selected && parseInt(selected.value) === q.data.correct) {
+                isCorrect = true;
+            } else {
+                correctAnswer = q.data.options[q.data.correct];
+            }
+        } 
+        else if (q.type === 'fill') {
+            const input = document.getElementById(`fill-${idx}`);
+            if (input) {
+                const userVal = input.value.trim().toLowerCase();
+                const correctVal = q.data.correctAnswer.toLowerCase();
+                if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) {
+                    isCorrect = true;
+                } else {
+                    correctAnswer = q.data.correctAnswer;
+                }
+            }
+        }
+        else if (q.type === 'match') {
+            let allMatch = true;
+            for (let i = 0; i < q.data.left.length; i++) {
+                const select = document.getElementById(`match-${idx}-${i}`);
+                const val = select ? parseInt(select.value) : -1;
+                if (val !== q.data.correct[i]) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (allMatch) {
+                isCorrect = true;
+            } else {
+                const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
+                correctAnswer = pairs;
+            }
+        }
+
+        if (showFeedback) {
+            if (isCorrect) {
+                fb.innerHTML = '✅ Верно';
+                fb.className = 'feedback correct-feedback';
+            } else {
+                fb.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswer}`;
+                fb.className = 'feedback wrong-feedback';
+            }
+        }
+        return isCorrect;
+    }
+
+    // Пересчёт общего результата без вывода отдельных сообщений (просто подсчёт)
+    function computeTotalCorrect() {
+        let correct = 0;
+        for (let idx = 0; idx < currentQuestions.length; idx++) {
+            const q = currentQuestions[idx];
+            if (q.type === 'choice') {
+                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+                if (selected && parseInt(selected.value) === q.data.correct) correct++;
+            } else if (q.type === 'fill') {
+                const input = document.getElementById(`fill-${idx}`);
+                if (input) {
+                    const userVal = input.value.trim().toLowerCase();
+                    const correctVal = q.data.correctAnswer.toLowerCase();
+                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== "")) correct++;
+                }
+            } else if (q.type === 'match') {
+                let allMatch = true;
+                for (let i = 0; i < q.data.left.length; i++) {
+                    const select = document.getElementById(`match-${idx}-${i}`);
+                    const val = select ? parseInt(select.value) : -1;
+                    if (val !== q.data.correct[i]) {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                if (allMatch) correct++;
+            }
+        }
+        return correct;
+    }
+
+    // Отрисовка и привязка обработчиков
     function renderQuestions(questions) {
         const container = document.getElementById('questionsContainer');
         container.innerHTML = '';
@@ -296,7 +371,8 @@
                     optionsDiv.appendChild(label);
                 });
                 card.appendChild(optionsDiv);
-            } else if (q.type === 'fill') {
+            } 
+            else if (q.type === 'fill') {
                 const textDiv = document.createElement('div');
                 textDiv.style.marginBottom = '12px';
                 textDiv.style.fontWeight = '500';
@@ -307,7 +383,8 @@
                 input.className = 'fill-input';
                 input.id = `fill-${idx}`;
                 card.appendChild(input);
-            } else if (q.type === 'match') {
+            }
+            else if (q.type === 'match') {
                 const matchDiv = document.createElement('div');
                 matchDiv.className = 'match-row';
                 const leftCol = document.createElement('div');
@@ -348,77 +425,50 @@
             card.appendChild(feedback);
             container.appendChild(card);
         });
+
+        // Привязываем обработчики мгновенной проверки
+        for (let idx = 0; idx < questions.length; idx++) {
+            const q = questions[idx];
+            if (q.type === 'choice') {
+                const radios = document.querySelectorAll(`input[name="q${idx}"]`);
+                radios.forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        checkSingleQuestion(q, idx, true);
+                    });
+                });
+            } else if (q.type === 'fill') {
+                const input = document.getElementById(`fill-${idx}`);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        checkSingleQuestion(q, idx, true);
+                    });
+                }
+            } else if (q.type === 'match') {
+                for (let i = 0; i < q.data.left.length; i++) {
+                    const select = document.getElementById(`match-${idx}-${i}`);
+                    if (select) {
+                        select.addEventListener('change', () => {
+                            checkSingleQuestion(q, idx, true);
+                        });
+                    }
+                }
+            }
+        }
     }
 
-    // Проверка всех ответов
-    function checkAllAnswers() {
+    // Показать общий результат
+    function showOverallResult() {
         if (!currentQuestions.length) {
             alert('Сначала выберите режим (кнопка "Случайный вариант" или "Все вопросы").');
             return;
         }
-        let total = currentQuestions.length;
-        let correctCount = 0;
-        for (let idx = 0; idx < currentQuestions.length; idx++) {
-            const q = currentQuestions[idx];
-            const fb = document.getElementById(`fb-${idx}`);
-            let isCorrect = false;
-            let correctAnswerText = '';
-
-            if (q.type === 'choice') {
-                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-                if (selected && parseInt(selected.value) === q.data.correct) {
-                    isCorrect = true;
-                } else {
-                    correctAnswerText = q.data.options[q.data.correct];
-                }
-            } else if (q.type === 'fill') {
-                const input = document.getElementById(`fill-${idx}`);
-                if (input) {
-                    const userVal = input.value.trim().toLowerCase();
-                    const correctVal = q.data.correctAnswer.toLowerCase();
-                    if (userVal === correctVal || (correctVal.includes(userVal) && userVal.length > 2 && userVal !== '')) {
-                        isCorrect = true;
-                    } else {
-                        correctAnswerText = q.data.correctAnswer;
-                    }
-                } else {
-                    correctAnswerText = q.data.correctAnswer;
-                }
-            } else if (q.type === 'match') {
-                let allMatch = true;
-                for (let i = 0; i < q.data.left.length; i++) {
-                    const select = document.getElementById(`match-${idx}-${i}`);
-                    const val = select ? parseInt(select.value) : -1;
-                    if (val !== q.data.correct[i]) {
-                        allMatch = false;
-                        break;
-                    }
-                }
-                if (allMatch) {
-                    isCorrect = true;
-                } else {
-                    const pairs = q.data.left.map((l, i) => `${l} → ${q.data.right[q.data.correct[i]]}`).join('; ');
-                    correctAnswerText = pairs;
-                }
-            }
-
-            if (isCorrect) correctCount++;
-            if (fb) {
-                if (isCorrect) {
-                    fb.innerHTML = '✅ Верно';
-                    fb.className = 'feedback correct-feedback';
-                } else {
-                    fb.innerHTML = `❌ Неверно. Правильный ответ: ${correctAnswerText}`;
-                    fb.className = 'feedback wrong-feedback';
-                }
-            }
-        }
-        const percent = Math.round((correctCount / total) * 100);
-        const resultDiv = document.getElementById('resultBlock');
-        resultDiv.innerHTML = `📊 Результат: ${correctCount} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Экзамен сдан!' : '📚 Повторите материал'}`;
+        const correct = computeTotalCorrect();
+        const total = currentQuestions.length;
+        const percent = Math.round((correct / total) * 100);
+        document.getElementById('resultBlock').innerHTML = `📊 Общий результат: ${correct} из ${total} (${percent}%)<br>${percent >= 70 ? '🎉 Экзамен сдан!' : '📚 Повторите материал'}`;
     }
 
-    // Обработчики
+    // Обработчики кнопок выбора режима
     document.getElementById('btnVariant').addEventListener('click', () => {
         if (!fullBank.length) {
             alert('База вопросов не загружена. Проверьте файл questions_data.js');
@@ -426,7 +476,7 @@
         }
         currentQuestions = getRandomVariant(fullBank, 30);
         renderQuestions(currentQuestions);
-        document.getElementById('resultBlock').innerHTML = `Случайный вариант из 30 вопросов.`;
+        document.getElementById('resultBlock').innerHTML = 'Случайный вариант из 30 вопросов. Ответы проверяются сразу.';
     });
 
     document.getElementById('btnAll').addEventListener('click', () => {
@@ -436,13 +486,10 @@
         }
         currentQuestions = getAllQuestions(fullBank);
         renderQuestions(currentQuestions);
-        document.getElementById('resultBlock').innerHTML = `Полный экзамен (${currentQuestions.length} вопросов).`;
+        document.getElementById('resultBlock').innerHTML = `Полный экзамен (${currentQuestions.length} вопросов). Ответы проверяются сразу.`;
     });
 
-    document.getElementById('checkBtn').addEventListener('click', checkAllAnswers);
-
-    // Запуск после загрузки внешнего скрипта
-    init();
+    document.getElementById('checkBtn').addEventListener('click', showOverallResult);
 </script>
 </body>
 </html>
